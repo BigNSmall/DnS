@@ -4,23 +4,12 @@ from statsmodels.tsa.stattools import acf
 from typing import List
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
+from utils.time_windowed_data import create_time_windows
 
 # 한글 폰트 설정
 font_path = "C:/Windows/Fonts/malgun.ttf"  # 실제 한글 폰트 경로로 변경해야 합니다
 font_prop = fm.FontProperties(fname=font_path)
 plt.rcParams["font.family"] = font_prop.get_name()
-
-
-def create_time_windows(
-    df: pd.DataFrame, window: int, stride: int
-) -> List[pd.DataFrame]:
-    values = df.values
-    indices = np.arange(len(df) - window + 1, step=stride)
-    windowed_values = np.array([values[i : i + window] for i in indices])
-    return [
-        pd.DataFrame(window_data, index=df.index[i : i + window], columns=df.columns)
-        for i, window_data in zip(indices, windowed_values)
-    ]
 
 
 def calculate_acf(
