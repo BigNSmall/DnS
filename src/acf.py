@@ -59,8 +59,7 @@ def plot_acf_range(acf_values: np.ndarray, title: str):
 
 
 def main():
-    df = pd.read_parquet("D:/Workspace/DnS/data/NAVER_20190723_20240721.parquet")
-
+    df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
     # 시계열 데이터를 time window로 나누기
     window_size = 5  # window 크기
     stride = 2  # stride 크기

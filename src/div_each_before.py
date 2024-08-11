@@ -17,7 +17,7 @@ def div_each_before(time_series):
 
 def main():
     # 예시 데이터 생성
-    df = pd.read_parquet("D:/Workspace/DnS/data/NAVER_20190723_20240721.parquet")
+    df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")   
 
     time_series = df["종가"]
 

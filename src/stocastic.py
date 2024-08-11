@@ -58,7 +58,7 @@ def stochastic_fast(
 # 사용 예시
 if __name__ == "__main__":
     # 샘플 데이터 생성 (실제 사용 시에는 이 부분을 실제 데이터 로드로 대체하세요)
-    data = pd.read_parquet("D:/Workspace/DnS/data/NAVER_20190723_20240721.parquet")
+    data = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
 
     # Stochastic Slow 계산
     slow = stochastic_slow(data)

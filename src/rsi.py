@@ -49,7 +49,7 @@ def visualize_price_and_rsi(price_series: pd.Series, rsi_series: pd.Series):
 
 def main():
     # 샘플 데이터 생성 (실제 주식 데이터와 비슷한 패턴을 만들기 위해 random walk 사용)
-    df = pd.read_parquet("D:/Workspace/DnS/data/NAVER_20190723_20240721.parquet")
+    df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
     price_series = df["종가"]
 
     # RSI 계산
