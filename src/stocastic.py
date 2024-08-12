@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-import talib
+import matplotlib.pyplot as plt
 
 
 def stochastic_slow(
@@ -10,7 +10,7 @@ def stochastic_slow(
     slowd_period: int = 3,
 ) -> pd.DataFrame:
     """
-    Calculate the Stochastic Slow indicator using TA-Lib.
+    Calculate the Stochastic Slow indicator using Pandas and NumPy.
 
     :param data: pandas DataFrame with '고가', '저가', '종가' columns
     :param fastk_period: The fast %K period (default is 14)
@@ -18,16 +18,12 @@ def stochastic_slow(
     :param slowd_period: The slow %D period (default is 3)
     :return: pandas DataFrame with slowk and slowd columns
     """
-    slowk, slowd = talib.STOCH(
-        data["고가"],
-        data["저가"],
-        data["종가"],
-        fastk_period=fastk_period,
-        slowk_period=slowk_period,
-        slowk_matype=0,
-        slowd_period=slowd_period,
-        slowd_matype=0,
-    )
+    low_min = data["저가"].rolling(window=fastk_period).min()
+    high_max = data["고가"].rolling(window=fastk_period).max()
+
+    fastk = 100 * ((data["종가"] - low_min) / (high_max - low_min))
+    slowk = fastk.rolling(window=slowk_period).mean()
+    slowd = slowk.rolling(window=slowd_period).mean()
 
     return pd.DataFrame({"slowk": slowk, "slowd": slowd}, index=data.index)
 
@@ -36,21 +32,18 @@ def stochastic_fast(
     data: pd.DataFrame, fastk_period: int = 14, fastd_period: int = 3
 ) -> pd.DataFrame:
     """
-    Calculate the Stochastic Fast indicator using TA-Lib.
+    Calculate the Stochastic Fast indicator using Pandas and NumPy.
 
     :param data: pandas DataFrame with '고가', '저가', '종가' columns
     :param fastk_period: The fast %K period (default is 14)
     :param fastd_period: The fast %D period (default is 3)
     :return: pandas DataFrame with fastk and fastd columns
     """
-    fastk, fastd = talib.STOCHF(
-        data["고가"],
-        data["저가"],
-        data["종가"],
-        fastk_period=fastk_period,
-        fastd_period=fastd_period,
-        fastd_matype=0,
-    )
+    low_min = data["저가"].rolling(window=fastk_period).min()
+    high_max = data["고가"].rolling(window=fastk_period).max()
+
+    fastk = 100 * ((data["종가"] - low_min) / (high_max - low_min))
+    fastd = fastk.rolling(window=fastd_period).mean()
 
     return pd.DataFrame({"fastk": fastk, "fastd": fastd}, index=data.index)
 
@@ -69,3 +62,26 @@ if __name__ == "__main__":
     fast = stochastic_fast(data)
     print("\nStochastic Fast:")
     print(fast)
+
+    # 시각화
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+
+    # Stochastic Slow 그래프
+    ax1.plot(slow.index, slow["slowk"], label="Slow %K")
+    ax1.plot(slow.index, slow["slowd"], label="Slow %D")
+    ax1.set_title("Stochastic Slow")
+    ax1.set_ylabel("Value")
+    ax1.legend()
+    ax1.grid(True)
+
+    # Stochastic Fast 그래프
+    ax2.plot(fast.index, fast["fastk"], label="Fast %K")
+    ax2.plot(fast.index, fast["fastd"], label="Fast %D")
+    ax2.set_title("Stochastic Fast")
+    ax2.set_xlabel("Date")
+    ax2.set_ylabel("Value")
+    ax2.legend()
+    ax2.grid(True)
+
+    plt.tight_layout()
+    plt.show()
