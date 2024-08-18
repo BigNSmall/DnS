@@ -1,71 +1,78 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.stats as stats
-from ta.volatility import BollingerBands
+import matplotlib.font_manager as fm
+from utils.time_windowed_data import create_time_windows
 
-def calculate_vix(series: pd.Series, window: int = 30) -> pd.Series:
+# 한글 폰트 설정
+font_path = "C:/Windows/Fonts/malgun.ttf"  # 실제 한글 폰트 경로로 변경해야 합니다
+font_prop = fm.FontProperties(fname=font_path)
+plt.rcParams["font.family"] = font_prop.get_name()
+
+def calculate_volatility(df: pd.DataFrame, column: str, window_size: int) -> np.ndarray:
     """
-    주어진 pandas Series에서 VIX와 유사한 지표를 계산하는 함수.
+    시간 창이 적용된 DataFrame의 지정된 열에 대해 변동성(VIX 지수와 유사)을 계산합니다.
+
+    :param df: create_time_windows 함수로 생성된 시간 창 DataFrame
+    :param column: 변동성을 계산할 기준 열의 이름 (예: "종가_t-0")
+    :param window_size: 변동성을 계산할 시간 창 크기 및 최대 시차
+    :return: 계산된 변동성 값을 포함하는 2D NumPy 배열 (각 행이 하나의 시간 창에 대한 변동성 값)
+    """
+    volatility_values = np.zeros((len(df), window_size))
+
+    # 각 시간 창에 대해 변동성 계산
+    for i in range(len(df)):
+        # 현재 시간 창의 데이터 추출
+        window_data = df.iloc[i, :window_size] # 특정 열의 데이터만 추출하고 결측값 제거
+
+        # 각 시차에 대해 변동성 계산
+        for lag in range(window_size):
+            if len(window_data) > lag:
+                lagged_data = window_data[lag:]  # 시차를 고려한 데이터 추출
+                # 변동성 (표준편차) 계산
+                volatility = np.std(lagged_data)
+                volatility_values[i, lag] = volatility
+
+    return volatility_values
+
+def plot_volatility(volatility_values: np.ndarray, title: str):
+    """
+    변동성 값의 시차별 변화를 시각화합니다.
 
     Parameters:
-    series (pd.Series): 입력 데이터 시리즈 (예: 주가)
-    window (int): 변동성을 계산할 기간 (기본값: 30일)
-
-    Returns:
-    pd.Series: VIX와 유사한 지표 시리즈
+    - volatility_values: np.ndarray, 각 window의 시차별 변동성 값 (shape: [windows, lags])
+    - title: str, 그래프 제목
     """
-    # 로그 수익률 계산
-    log_returns = np.log(series / series.shift(1)).dropna()
-    
-    # 30일 이동 표준 편차 계산
-    rolling_std = log_returns.rolling(window=window).std()
-    
-    # 연율화된 변동성 계산 (표준 편차 * sqrt(252))
-    annualized_volatility = rolling_std * np.sqrt(252)
-    
-    # VIX와 유사한 지표 생성 (100을 곱해서 %로 표시)
-    vix_like_index = annualized_volatility * 100
-    
-    return vix_like_index
+    num_windows, num_lags = volatility_values.shape
 
-def plot_vix_and_prices(price_series: pd.Series, vix_series: pd.Series):
-    """
-    주가 데이터와 VIX와 유사한 지표를 시각화하는 함수.
+    plt.figure(figsize=(12, 6))
 
-    Parameters:
-    price_series (pd.Series): 주가 데이터 시리즈
-    vix_series (pd.Series): VIX와 유사한 지표 시리즈
-    """
-    fig, ax1 = plt.subplots(figsize=(14, 7))
+    # 각 시차에 대한 변동성의 평균값을 플롯
+    mean_volatility = np.mean(volatility_values, axis=0)
+    plt.plot(range(num_lags), mean_volatility, "r-", label="Mean Volatility")
 
-    # 주가 데이터 플롯
-    ax1.plot(price_series, color='blue', label='Price')
-    ax1.set_xlabel('Date')
-    ax1.set_ylabel('Price', color='blue')
-    ax1.tick_params(axis='y', labelcolor='blue')
-
-    # VIX 데이터 플롯 (이중 축 사용)
-    ax2 = ax1.twinx()
-    ax2.plot(vix_series, color='red', label='VIX-like Index')
-    ax2.set_ylabel('VIX-like Index', color='red')
-    ax2.tick_params(axis='y', labelcolor='red')
-
-    # 그래프 제목과 범례 설정
-    plt.title('Price and VIX-like Index')
-    fig.tight_layout()
-    fig.legend(loc='upper left', bbox_to_anchor=(0.1,0.9))
-
+    plt.xlabel("Lag")
+    plt.ylabel("Volatility")
+    plt.title(title)
+    plt.legend()
+    plt.grid(True)
     plt.show()
 
-# 예시 데이터 사용
-if __name__ == "__main__":
-    # 가상 주가 데이터 생성
-    df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
-    price_series = df["종가"]
 
-    # VIX와 유사한 지표 계산
-    vix_series = calculate_vix(price_series)
+def main():
+    df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
     
-    # 시각화
-    plot_vix_and_prices(price_series, vix_series)
+    # 시계열 데이터를 time window로 나누기
+    window_size = 5  # window 크기 및 최대 시차
+    stride = 2  # stride 크기
+    df_list = create_time_windows(df, window_size, stride)
+
+    print("종가에 대한 변동성 계산 결과:")
+    volatility_values = calculate_volatility(df_list, column="종가", window_size=window_size)
+    plot_volatility(
+        volatility_values,
+        f"Volatility by Lag (Window Size: {window_size}, Stride: {stride})",
+    )
+
+if __name__ == "__main__":
+    main()

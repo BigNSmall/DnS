@@ -6,19 +6,21 @@ import matplotlib.pyplot as plt
 from utils.time_windowed_data import create_time_windows
 from acf import calculate_acf
 from fractional_difference import fractional_difference
+from vix import calculate_volatility
 
 plt.rcParams["font.family"] = "Malgun Gothic"
 plt.rcParams["axes.unicode_minus"] = False
 
 
 def prepare_data():
-    df = pd.read_parquet("D:/Workspace/DnS/data/NAVER_20190723_20240721.parquet")
+    df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
     window_size = 5
     stride = 2
     df_list = create_time_windows(df, window_size, stride)
 
     features = {
-        "ACF": calculate_acf(df_list, column="종가", window_size=window_size),
+    #    "ACF": calculate_acf(df_list, column="종가", window_size=window_size),
+        "vix": calculate_volatility(df_list, column="종가", window_size=window_size),
     }
 
     close_prices = df["종가"]

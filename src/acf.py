@@ -70,7 +70,7 @@ def plot_acf_range(acf_values: np.ndarray, title: str):
 
 
 def main():
-    df = pd.read_parquet("D:/Workspace/DnS/data/NAVER_20190723_20240721.parquet")
+    df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
 
     # 시계열 데이터를 time window로 나누기
     window_size = 5  # window 크기
@@ -79,6 +79,7 @@ def main():
 
     print("종가에 대한 ACF 계산 결과:")
     acf_values = calculate_acf(df_list, column="종가", window_size=window_size)
+    print(acf_values)
     plot_acf_range(
         acf_values,
         f"Autocorrelation Function (ACF) for 종가 (Window Size: {window_size}, Stride: {stride})",
