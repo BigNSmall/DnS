@@ -9,7 +9,7 @@ def calculate_lrl(prices: pd.Series, period: int) -> pd.Series:
     for i in range(period, len(prices)):
         y = prices[i-period:i]
         x = np.arange(period)
-        slope, intercept, r_value, p_value, std_err = linregress(x, y)
+        , intercept, r_value, p_value, std_err = linregress(x, y)
         lrl[i] = slope * (period - 1) + intercept
     return pd.Series(lrl, index=prices.index)
 
