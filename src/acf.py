@@ -12,12 +12,7 @@ font_prop = fm.FontProperties(fname=font_path)
 plt.rcParams["font.family"] = font_prop.get_name()
 
 
-from typing import Union
-
-
-def calculate_acf(
-    df: Union[pd.DataFrame, pd.Series], column: str, window_size: int
-) -> np.ndarray:
+def calculate_acf(df: pd.DataFrame, column: str, window_size: int) -> np.ndarray:
     """
     시간 창이 적용된 DataFrame의 지정된 열에 대해 자기상관함수(ACF)를 계산합니다.
 
@@ -75,9 +70,7 @@ def plot_acf_range(acf_values: np.ndarray, title: str):
 
 
 def main():
-    df = pd.read_parquet(
-        "C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet"
-    )
+    df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
 
     # 시계열 데이터를 time window로 나누기
     window_size = 5  # window 크기
