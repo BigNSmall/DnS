@@ -26,8 +26,10 @@ def stochastic_slow(
     slowk = fastk.rolling(window=slowk_period, min_periods =1).mean()
     slowd = slowk.rolling(window=slowd_period, min_periods =1).mean()
     slowk = slowk[:window_size]
-    return np.array(slowk.fillna(1).to_numpy())
-
+    return {
+        slowd :np.array(slowd.fillna(1).to_numpy()),
+        slowk :np.array(slowk.fillna(1).to_numpy())
+    }
 
 def stochastic_fast(
     data: pd.DataFrame, fastk_period: int = 14, fastd_period: int = 3, window_size = 5
@@ -46,8 +48,12 @@ def stochastic_fast(
     fastk = 100 * ((data["종가"] - low_min) / (high_max - low_min))
     fastd = fastk.rolling(window=fastd_period, min_periods =1).mean()
     
+    fastd = fastd[:window_size]
     fastk = fastk[:window_size]
-    return np.array(fastk.fillna(1).to_numpy())
+    return {
+        fastk :np.array(fastk.fillna(1).to_numpy()),
+        fastd :np.array(fastd.fillna(1).to_numpy())
+    }
     #return pd.DataFrame({"fastk": fastk, "fastd": fastd}, index=data.index)
 
 
