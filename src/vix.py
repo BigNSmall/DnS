@@ -9,7 +9,8 @@ font_path = "C:/Windows/Fonts/malgun.ttf"  # 실제 한글 폰트 경로로 변�
 font_prop = fm.FontProperties(fname=font_path)
 plt.rcParams["font.family"] = font_prop.get_name()
 
-def calculate_volatility(df: pd.DataFrame   , column: str, window_size: int) -> np.ndarray:
+
+def calculate_volatility(df: pd.DataFrame, column: str, window_size: int) -> np.ndarray:
     """
     시간 창이 적용된 DataFrame의 지정된 열에 대해 변동성(VIX 지수와 유사)을 계산합니다.
 
@@ -23,14 +24,15 @@ def calculate_volatility(df: pd.DataFrame   , column: str, window_size: int) -> 
     # 각 시간 창에 대해 변동성 계산
     for i in range(len(df)):
         # 현재 시간 창의 데이터 추출
-        window_data = df.iloc[i, :30] # 특정 열의 데이터만 추출하고 결측값 제거
+        window_data = df.iloc[i, :30]  # 특정 열의 데이터만 추출하고 결측값 제거
         # 변동성 (표준편차) 계산
         volatility = np.std(window_data)
         volatility_values.append(volatility)
-   
+
     volatility_values = volatility_values[:window_size]
-    
-    return np.array(volatility_values)
+
+    return volatility_values
+
 
 def plot_volatility(volatility_values: np.ndarray, title: str):
     """
@@ -54,20 +56,23 @@ def plot_volatility(volatility_values: np.ndarray, title: str):
 
 
 def main():
-    df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
-    
+    df = pd.read_parquet(
+        "C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet"
+    )
+
     # 시계열 데이터를 time window로 나누기
     window_size = 5  # window 크기 및 최대 시차
     stride = 2  # stride 크기
     df_list = create_time_windows(df, window_size, stride)
 
     print("종가에 대한 변동성 계산 결과:")
-    volatility_values = calculate_volatility(df_list, '종가', 5)
+    volatility_values = calculate_volatility(df_list, "종가", 5)
     print(volatility_values)
     plot_volatility(
         volatility_values,
         f"Volatility by Lag (Window Size: {window_size}, Stride: {stride})",
     )
+
 
 if __name__ == "__main__":
     main()

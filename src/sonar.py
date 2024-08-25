@@ -33,7 +33,7 @@ def sonar_indicator(df, window_size: int = 5) -> pd.Series:
 
     sonar = sonar[:window_size]
 
-    return np.array(sonar.fillna(0).to_numpy())
+    return sonar
 
     # Return the Sonar indicator
 

@@ -12,28 +12,33 @@ font_prop = fm.FontProperties(fname=font_path)
 plt.rcParams["font.family"] = font_prop.get_name()
 
 
-def calculate_acf(df: pd.DataFrame, column: str, window_size: int) -> np.ndarray:
+def calculate_acf(time_window_df: pd.DataFrame, window_size: int) -> pd.DataFrame:
     """
-    시간 창이 적용된 DataFrame의 지정된 열에 대해 자기상관함수(ACF)를 계산합니다.
+    시간 창이 적용된 DataFrame의 모든 열에 대해 자기상관함수(ACF)를 계산합니다.
 
-    :param df: create_time_windows 함수로 생성된 시간 창 DataFrame
-    :param column: ACF를 계산할 기준 열의 이름 (예: "종가_t-0")
+    :param time_window_df: create_time_windows 함수로 생성된 시간 창 DataFrame (단일 열에 대한)
     :param window_size: ACF를 계산할 최대 시차
-    :return: 계산된 ACF 값을 포함하는 2D NumPy 배열 (각 행이 하나의 시간 창에 대한 ACF 값)
+    :return: 계산된 ACF 값을 포함하는 DataFrame (인덱스는 원본 날짜)
     """
     acf_values_list = []
 
     # 각 시간 창에 대해 ACF 계산
-    for i in range(len(df)):
+    for idx, row in time_window_df.iterrows():
         # 현재 시간 창의 데이터 추출
-        window_data = df.iloc[i, :window_size]
+        window_data = row.values
 
         # ACF 계산
         acf_values = acf(window_data, nlags=window_size - 1, fft=False)
 
         acf_values_list.append(acf_values)
 
-    return np.array(acf_values_list)
+    # ACF 값으로 새로운 DataFrame 생성
+    acf_df = pd.DataFrame(acf_values_list, index=time_window_df.index)
+
+    # 열 이름 설정
+    acf_df.columns = [f"lag_{i}" for i in range(window_size)]
+
+    return acf_df
 
 
 def plot_acf_range(acf_values: np.ndarray, title: str):
@@ -70,7 +75,9 @@ def plot_acf_range(acf_values: np.ndarray, title: str):
 
 
 def main():
-    df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
+    df = pd.read_parquet(
+        "C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet"
+    )
 
     # 시계열 데이터를 time window로 나누기
     window_size = 5  # window 크기

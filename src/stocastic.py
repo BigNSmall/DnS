@@ -51,11 +51,8 @@ def stochastic_fast(
 
     fastd = fastd[:window_size]
     fastk = fastk[:window_size]
-    return {
-        "fastk": np.array(fastk.fillna(0.00001).to_numpy()),
-        "fastd": np.array(fastd.fillna(0.00001).to_numpy()),
-    }
-    # return pd.DataFrame({"fastk": fastk, "fastd": fastd}, index=data.index)
+    # return {"fastk": fastk, "fastd": fastd}
+    return pd.DataFrame({"fastk": fastk, "fastd": fastd}, index=data.index)
 
 
 # 사용 예시

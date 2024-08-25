@@ -20,7 +20,7 @@ def demartini_index(close_prices: pd.Series, period: int = 14) -> pd.Series:
 
     # DeMartini Index is similar to RSI but can have custom calculations
     # Here we use RSI as a proxy to demonstrate the functionality
-    demartini_index = rsi.fillna(0.0001)
+    demartini_index = rsi
     return demartini_index
 
 

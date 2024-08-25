@@ -23,14 +23,10 @@ def williams_r(df, window_size, lookback_period=5):
     highest_high = high.rolling(window=lookback_period, min_periods=1).max()
     lowest_low = low.rolling(window=lookback_period, min_periods=1).min()
     # Calculate Williams %R
-    will_r = (
-        -100
-        * ((highest_high - close) / (highest_high - lowest_low)).fillna(1).to_numpy()
-    )
+    will_r = -100 * ((highest_high - close) / (highest_high - lowest_low))
 
-    will_r = will_r[:window_size]
-    print(will_r)
-    return np.array(will_r)
+    # will_r = will_r[:window_size]
+    return will_r
 
 
 def plot_williams_r(df, lookback_period=5):

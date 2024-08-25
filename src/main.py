@@ -38,14 +38,14 @@ def prepare_data(file_path):
         "stocastic fast": stochastic_fast(df)["fastk"],
         "stocastic slow": stochastic_slow(df)["slowk"],
         "buffet index kor": calculate_buffett_index(df["종가"], "KOR"),
-        "buffet index usa": calculate_buffett_index(df["종가"], "USA"),
+        # "buffet index usa": calculate_buffett_index(df["종가"], "USA"),
         "demartini index": demartini_index(df["종가"], period=5),
         "pivot": calculate_pivot_points(df["고가"], df["저가"], df["종가"]),
         "sonar": sonar_indicator(df, window_size=5),
     }
 
     close_prices = df["종가"]
-    d_values = [0.8, 0.5, 0.3]
+    d_values = [0.8, 0.3]
     for d in d_values:
         frac_diffs = fractional_difference(close_prices, d)
         frac_diffs = create_time_windows(frac_diffs, window_size, stride)
