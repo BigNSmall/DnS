@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def williams_r(df, window_size,  lookback_period=5):
+    
     high = df['고가']
     low = df['저가']
     close = df['종가']
@@ -19,9 +20,8 @@ def williams_r(df, window_size,  lookback_period=5):
     Returns:
     pd.Series: Williams %R values
     """
-    highest_high = high.rolling(window=lookback_period).max()
-    lowest_low = low.rolling(window=lookback_period).min()
-
+    highest_high = high.rolling(window=lookback_period, min_periods =1).max()
+    lowest_low = low.rolling(window=lookback_period, min_periods =1).min()
     # Calculate Williams %R
     will_r = -100 * ((highest_high - close) / (highest_high - lowest_low)).fillna(1).to_numpy()
 
