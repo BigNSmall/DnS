@@ -2,7 +2,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-def sonar_indicator(prices: pd.Series, volume: pd.Series, window: int = 14) -> pd.Series:
+def sonar_indicator(df, window_size: int = 5) -> pd.Series:
+    prices = df["종가"]
+    volume = df["거래량"]
     """
     Calculate the Sonar indicator based on price and volume.
     
@@ -19,18 +21,20 @@ def sonar_indicator(prices: pd.Series, volume: pd.Series, window: int = 14) -> p
     log_returns = np.log(prices / prices.shift(1))
     
     # Calculate the moving average of the log returns
-    moving_avg_returns = log_returns.rolling(window=window).mean()
+    moving_avg_returns = log_returns.rolling(window=window_size, min_periods =1).mean()
     
     # Calculate the volume-weighted moving average of the log returns
-    volume_weighted_returns = (log_returns * volume).rolling(window=window).sum() / volume.rolling(window=window).sum()
-    
+    volume_weighted_returns = (log_returns * volume).rolling(window=window_size, min_periods =1).sum() / volume.rolling(window=window_size, min_periods =1).sum()
     # Calculate the Sonar indicator
     sonar = moving_avg_returns - volume_weighted_returns
-    
-    # Return the Sonar indicator
-    return sonar
 
-def plot_sonar_indicator(prices: pd.Series, sonar: pd.Series):
+    sonar = sonar[:window_size]
+
+    return np.array(sonar.fillna(1).to_numpy())
+
+    # Return the Sonar indicator
+
+def plot_sonar_indicator(sonar: pd.Series):
     """
     Plot the Sonar indicator along with the stock prices.
     
@@ -40,11 +44,7 @@ def plot_sonar_indicator(prices: pd.Series, sonar: pd.Series):
     """
     plt.figure(figsize=(14, 7))
     
-    # Plot stock prices
-    plt.subplot(2, 1, 1)
-    plt.plot(prices, label='Stock Prices')
-    plt.title('Stock Prices and Sonar Indicator')
-    plt.legend()
+
     
     # Plot Sonar indicator
     plt.subplot(2, 1, 2)
@@ -56,11 +56,9 @@ def plot_sonar_indicator(prices: pd.Series, sonar: pd.Series):
 
 # Sample data
 df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
-prices = df["종가"]
-volume = df["거래량"]
 
 # Calculate the Sonar indicator
-sonar = sonar_indicator(prices, volume)
-
+sonar = sonar_indicator(df,5)
+print(sonar)
 # Plot the Sonar indicator
-plot_sonar_indicator(prices, sonar)
+plot_sonar_indicator(sonar)
