@@ -10,6 +10,7 @@ from utils.time_windowed_data import create_time_windows
 from acf import calculate_acf
 from fractional_difference import fractional_difference
 from vix import calculate_volatility
+from williams import williams_r
 
 plt.rcParams["font.family"] = "Malgun Gothic"
 plt.rcParams["axes.unicode_minus"] = False
@@ -23,6 +24,7 @@ def prepare_data(file_path):
 
     features = {
         "vix": calculate_volatility(df, column="종가", window_size=window_size),
+         "williams" :williams_r(df, window_size, 5),
     }
 
     close_prices = df["종가"]

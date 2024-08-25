@@ -1,7 +1,12 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
-def williams_r(high, low, close, lookback_period=14):
+def williams_r(df, window_size,  lookback_period=5):
+    high = df['고가']
+    low = df['저가']
+    close = df['종가']
+
     """
     Calculate the Williams %R indicator.
 
@@ -18,11 +23,13 @@ def williams_r(high, low, close, lookback_period=14):
     lowest_low = low.rolling(window=lookback_period).min()
 
     # Calculate Williams %R
-    will_r = -100 * ((highest_high - close) / (highest_high - lowest_low))
+    will_r = -100 * ((highest_high - close) / (highest_high - lowest_low)).fillna(1).to_numpy()
 
-    return will_r
+    will_r = will_r[:window_size]
+    print(will_r)
+    return np.array(will_r)
 
-def plot_williams_r(df, lookback_period=14):
+def plot_williams_r(df, lookback_period=5):
     """
     Plot the Williams %R indicator.
 
@@ -30,16 +37,10 @@ def plot_williams_r(df, lookback_period=14):
     df (pd.DataFrame): DataFrame containing high, low, close prices
     lookback_period (int): The lookback period for the indicator
     """
-    will_r = williams_r(df['고가'], df['저가'], df['종가'], lookback_period)
+    will_r = williams_r(df,5, lookback_period)
 
     plt.figure(figsize=(14, 7))
     
-    # Plotting the closing prices
-    plt.subplot(2, 1, 1)
-    plt.plot(df['종가'], label='Close Price')
-    plt.title('Close Price')
-    plt.legend()
-
     # Plotting the Williams %R
     plt.subplot(2, 1, 2)
     plt.plot(will_r, label=f'Williams %R (lookback period={lookback_period})', color='orange')
