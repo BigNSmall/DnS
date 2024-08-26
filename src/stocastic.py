@@ -25,13 +25,12 @@ def stochastic_slow(
     fastk = 100 * ((data["종가"] - low_min) / (high_max - low_min))
     slowk = fastk.rolling(window=slowk_period, min_periods=1).mean()
     slowd = slowk.rolling(window=slowd_period, min_periods=1).mean()
-    #slowk = slowk[:window_size]
+    # slowk = slowk[:window_size]
     return {
         "slowd": slowd,
         "slowk": slowk,
     }
-    #return pd.DataFrame({"slowd": slowd, "slowk": slowk}, index=data.index)
-
+    # return pd.DataFrame({"slowd": slowd, "slowk": slowk}, index=data.index)
 
 
 def stochastic_fast(
@@ -51,11 +50,11 @@ def stochastic_fast(
     fastk = 100 * ((data["종가"] - low_min) / (high_max - low_min))
     fastd = fastk.rolling(window=fastd_period, min_periods=1).mean()
 
-    fastd = fastd[:window_size]
-    #fastd = fastd[:window_size]
-    #fastk = fastk[:window_size]
+    # fastd = fastd[:window_size]
+    # fastd = fastd[:window_size]
+    # fastk = fastk[:window_size]
     return {"fastk": fastk, "fastd": fastd}
-    #return pd.DataFrame({"fastk": fastk, "fastd": fastd}, index=data.index)
+    # return pd.DataFrame({"fastk": fastk, "fastd": fastd}, index=data.index)
 
 
 # 사용 예시

@@ -31,8 +31,6 @@ def sonar_indicator(df, window_size: int = 5) -> pd.Series:
     # Calculate the Sonar indicator
     sonar = moving_avg_returns - volume_weighted_returns
 
-    sonar = sonar[:window_size]
-
     return sonar
 
     # Return the Sonar indicator
