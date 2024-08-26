@@ -12,7 +12,7 @@ from div_each_before import div_each_before
 from time_delay import time_delay_embedding
 from stocastic import stochastic_fast, stochastic_slow
 from fractional_difference import fractional_difference
-from vix import calculate_volatility
+from vix import calculate_vix
 from williams import williams_r
 from buffett import calculate_buffett_index
 from deMartini import demartini_index
@@ -30,7 +30,7 @@ def prepare_data(file_path):
     df_list = create_time_windows(df, window_size, stride)
 
     features = {
-        "vix": calculate_volatility(df, column="종가", window_size=window_size),
+        "vix": calculate_vix(df["종가"]),
         "williams": williams_r(df, window_size, 5),
         "ACF": calculate_acf(df_list, column="종가", window_size=window_size),
         "div_each_before": div_each_before(df["종가"]),
