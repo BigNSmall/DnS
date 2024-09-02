@@ -1,76 +1,55 @@
+import glob
 import numpy as np
 import pandas as pd
-import torch
-from torch.utils.data import Dataset, DataLoader
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
-
-from indicators.acf import calculate_acf
-from indicators.buffett import calculate_buffett_index
-from indicators.deMartini import demartini_index
-from indicators.div_each_before import div_each_before
-from indicators.fractional_difference import fractional_difference
-from indicators.pivot import calculate_pivot_points
-from indicators.sonar import sonar_indicator
-from indicators.stocastic import stochastic_fast, stochastic_slow
-from indicators.time_delay import time_delay_embedding
-from indicators.vix import calculate_vix
-from indicators.williams import williams_r
+from torch.utils.data import Dataset
+from sklearn.preprocessing import StandardScaler
 
 
 def calculate_indicators(df, window_size):
+    from indicators.acf import calculate_acf
+    from indicators.buffett import calculate_buffett_index
+    from indicators.deMartini import demartini_index
+    from indicators.div_each_before import div_each_before
+    from indicators.fractional_difference import fractional_difference
+    from indicators.pivot import calculate_pivot_points
+    from indicators.sonar import sonar_indicator
+    from indicators.stocastic import stochastic_fast, stochastic_slow
+    from indicators.time_delay import time_delay_embedding
+    from indicators.vix import calculate_vix
+    from indicators.williams import williams_r
+
     indicators = {
-        "ACF": calculate_acf(df["종가"], window_size=window_size),
-        "Buffett": calculate_buffett_index(df["종가"], "KOR"),
-        "DE": demartini_index(df["종가"]),
-        "DEB": div_each_before(df["종가"]),
-        "FracDiff": fractional_difference(df["종가"], 0.3),
-        "PivotPoints": calculate_pivot_points(df["고가"], df["저가"], df["종가"]),
-        "SN": sonar_indicator(df, window_size=14),
-        "STFA": stochastic_fast(df)["fastd"],
-        "STSL": stochastic_slow(df)["slowd"],
-        "TimeDelay": time_delay_embedding(df["종가"], 60, 1)["t-0"],
-        "CalVIX": calculate_vix(df["종가"], window_size),
-        "Williams": williams_r(df, 5),
+        "ACF": calculate_acf(df["종가"], window_size=window_size),  # (T, window_size)
+        "Buffett": calculate_buffett_index(df["종가"], "KOR"),  # (T,)
+        "DE": demartini_index(df["종가"]),  # (T,)
+        "DEB": div_each_before(df["종가"]),  # (T,)
+        "FracDiff": fractional_difference(df["종가"], 0.3),  # (T,)
+        "PivotPoints": calculate_pivot_points(
+            df["고가"], df["저가"], df["종가"]
+        ),  # (T, 7)
+        "SN": sonar_indicator(df, window_size=14),  # (T,)
+        "STFA": stochastic_fast(df)["fastd"],  # (T,)
+        "STSL": stochastic_slow(df)["slowd"],  # (T,)
+        "TimeDelay": time_delay_embedding(df["종가"], 60, 1)["t-0"],  # (T,)
+        "CalVIX": calculate_vix(df["종가"], window_size),  # (T,)
+        "Williams": williams_r(df, 5),  # (T,)
     }
+
+    # Ensure all indicators are 2D numpy arrays
+    for key, value in indicators.items():
+        if isinstance(value, pd.DataFrame):
+            indicators[key] = value.values
+        elif isinstance(value, pd.Series):
+            indicators[key] = value.values.reshape(-1, 1)
+        elif isinstance(value, np.ndarray):
+            if value.ndim == 1:
+                indicators[key] = value.reshape(-1, 1)
+            elif value.ndim > 2:
+                raise ValueError(f"Indicator {key} has more than 2 dimensions")
+        else:
+            raise ValueError(f"Unexpected type for indicator {key}: {type(value)}")
 
     return indicators
-
-
-def combine_indicators(indicators, df_original):
-    column_mapping = {
-        "acf": "Autocorrelation_Function",
-        "buffett": "Buffett_Indicator",
-        "de": "DeMartini_Indicator",
-        "deb": "Divide_Each_Before",
-        "fracdiff": "Fractional_Differentiation",
-        "pivot_high": "Pivot_Point_High",
-        "pivot_low": "Pivot_Point_Low",
-        "pivot_close": "Pivot_Point_Close",
-        "sonar": "Sonar_Indicator",
-        "fastd": "Stochastic_Fast_%D",
-        "slowd": "Stochastic_Slow_%D",
-        "t-0": "Time_Delay_Embedding",
-        "vix": "Volatility_Index",
-        "williams_r": "Williams_%R",
-    }
-
-    result = pd.DataFrame(index=df_original.index)
-
-    for indicator_name, indicator_data in indicators.items():
-        if isinstance(indicator_data, pd.DataFrame):
-            renamed_columns = {
-                col: f"{indicator_name}_{column_mapping.get(col, col)}"
-                for col in indicator_data.columns
-            }
-            indicator_data = indicator_data.rename(columns=renamed_columns)
-        elif isinstance(indicator_data, pd.Series):
-            new_name = f"{indicator_name}_{column_mapping.get(indicator_data.name, indicator_data.name)}"
-            indicator_data = indicator_data.rename(new_name)
-
-        result = pd.concat([result, indicator_data], axis=1)
-
-    return result
 
 
 class SlidingWindowDataset(Dataset):
@@ -78,63 +57,105 @@ class SlidingWindowDataset(Dataset):
         self.df = df
         self.window_size = window_size
         self.stride = stride
-        self.valid_indices = self._get_valid_indices()
 
-        # Apply min-max normalization to each column
-        self.scaler = MinMaxScaler()
-        self.normalized_data = self.scaler.fit_transform(self.df)
+        # Calculate indicators
+        self.indicators = calculate_indicators(df, window_size)
 
-    def _get_valid_indices(self):
-        return [
-            i
-            for i in range(0, len(self.df) - self.window_size + 1, self.stride)
-            if not np.isnan(self.df.iloc[i : i + self.window_size].values).any()
+        # Combine all indicators into a single numpy array
+        self.combined_data = np.concatenate(
+            [v for v in self.indicators.values()], axis=1
+        )
+
+        # Remove any rows with NaN values
+        self.combined_data = self.combined_data[
+            ~np.isnan(self.combined_data).any(axis=1)
         ]
 
+        # Calculate the number of valid windows
+        self.num_windows = (len(self.combined_data) - window_size) // stride + 1
+
     def __len__(self):
-        return len(self.valid_indices)
+        return self.num_windows
 
     def __getitem__(self, idx):
-        if idx >= len(self.valid_indices):
-            raise IndexError("Index out of range")
-
-        start_idx = self.valid_indices[idx]
+        start_idx = idx * self.stride
         end_idx = start_idx + self.window_size
 
-        window = self.normalized_data[start_idx:end_idx]
+        window_data = self.combined_data[start_idx:end_idx]
 
-        # Convert to PyTorch tensor
-        window_tensor = torch.FloatTensor(window)
+        # Check if the window contains any NaN values
+        if np.isnan(window_data).any():
+            # If NaN values are found, move to the next valid window
+            return self.__getitem__(idx + 1)
 
-        return {"window": window_tensor}
+        # Apply MinMax scaling per column
+        scaled_window = self.scale_window(window_data)
 
-    def inverse_transform(self, normalized_data):
-        return self.scaler.inverse_transform(normalized_data)
+        return scaled_window
+
+    def scale_window(self, window):
+        """
+        각 컬럼별로 MinMax 스케일링을 적용합니다.
+        """
+        scaler = StandardScaler()
+        scaled_window = np.zeros_like(window)
+        for i in range(window.shape[1]):
+            scaled_window[:, i] = scaler.fit_transform(
+                window[:, i].reshape(-1, 1)
+            ).flatten()
+        return scaled_window
 
 
-# Usage example:
-# 파라미터 설정
-window_size = 5
-stride = 3
-batch_size = 64
-num_epochs = 100
-learning_rate = 0.0001
-test_size = 0.2
+class MultiFileSlidingWindowDataset(Dataset):
+    def __init__(self, file_pattern, window_size=5, stride=2):
+        self.file_list = sorted(glob.glob(file_pattern))
+        self.window_size = window_size
+        self.stride = stride
+        self.file_index = []
+        self.cumulative_windows = [0]
+
+        for i, file_path in enumerate(self.file_list[:10]):
+            df = pd.read_parquet(file_path)
+            dataset = SlidingWindowDataset(df, window_size, stride)
+            num_windows = len(dataset)
+            self.file_index.extend([i] * num_windows)
+            self.cumulative_windows.append(self.cumulative_windows[-1] + num_windows)
+
+    def __len__(self):
+        return self.cumulative_windows[-1]
+
+    def __getitem__(self, idx):
+        file_idx = self.file_index[idx]
+        file_path = self.file_list[file_idx]
+        local_idx = idx - self.cumulative_windows[file_idx]
+
+        df = pd.read_parquet(file_path)
+        dataset = SlidingWindowDataset(df, self.window_size, self.stride)
+        return dataset[local_idx]
 
 
-df = pd.read_parquet(
-    r"D:\Workspace\DnS\data\AJ네트웍스_20190825_20240825.parquet"
-)  # Load your DataFrame
-indicators = calculate_indicators(df, window_size)
-combined_df = combine_indicators(indicators, df)
+def data_generator(file_pattern, window_size=5, stride=2, batch_size=32):
+    file_list = sorted(glob.glob(file_pattern))
+    for file_path in file_list:
+        df = pd.read_parquet(file_path)
+        dataset = SlidingWindowDataset(df, window_size, stride)
+        for i in range(0, len(dataset), batch_size):
+            yield [dataset[j] for j in range(i, min(i + batch_size, len(dataset)))]
 
-# 데이터 분할
-train_df, test_df = train_test_split(combined_df, test_size=test_size, shuffle=True)
 
-# 데이터셋 및 DataLoader 생성
-train_dataset = SlidingWindowDataset(train_df, window_size=window_size, stride=stride)
-test_dataset = SlidingWindowDataset(test_df, window_size=window_size, stride=stride)
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+# Example usage:
+if __name__ == "__main__":
+    file_pattern = "./data/*.parquet"  # 파일 패턴을 적절히 수정하세요.
 
-print(train_loader[0])
+    # 방법 1: MultiFileSlidingWindowDataset 사용
+    multi_dataset = MultiFileSlidingWindowDataset(file_pattern, window_size=5, stride=2)
+    print(f"Total dataset length: {len(multi_dataset)}")
+    print(f"Sample window shape: {multi_dataset[0].shape}")
+    print(f"Sample window data:\n{multi_dataset[0]}")
+
+    # 방법 2: 제너레이터 사용
+    for batch in data_generator(file_pattern, window_size=5, stride=2, batch_size=32):
+        print(f"Batch size: {len(batch)}")
+        print(f"Sample window shape: {batch[0].shape}")
+        print(f"Sample window data:\n{batch[0]}")
+        break  # 예시를 위해 첫 번째 배치만 출력합니다.
