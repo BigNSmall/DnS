@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 
+import pandas as pd
+
+
 def time_delay_embedding(
     series: pd.Series, delay: int, embedding_dimension: int
 ) -> pd.DataFrame:
@@ -20,15 +23,23 @@ def time_delay_embedding(
         )
 
     embedded_data = []
+    valid_indices = []
 
     for i in range(n - delay * (embedding_dimension - 1)):
         embedded_vector = [
             series.iloc[i + j * delay] for j in range(embedding_dimension)
         ]
         embedded_data.append(embedded_vector)
+        valid_indices.append(series.index[i + delay * (embedding_dimension - 1)])
 
-    column_names = [f"t-{j*delay}" for j in range(embedding_dimension)]
-    return pd.DataFrame(embedded_data, columns=column_names)
+    column_names = [f"t-{j*delay}" for j in range(embedding_dimension - 1, -1, -1)]
+    df = pd.DataFrame(embedded_data, columns=column_names, index=valid_indices)
+
+    # Ensure the index is a DateTimeIndex
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index)
+
+    return df
 
 
 def main():

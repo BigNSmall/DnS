@@ -1,180 +1,140 @@
-import streamlit as st
-import pandas as pd
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-import os
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from utils.time_windowed_data import create_time_windows
-from acf import calculate_acf
-from div_each_before import div_each_before
-from time_delay import time_delay_embedding
-from stocastic import stochastic_fast, stochastic_slow
-from fractional_difference import fractional_difference
-from vix import calculate_vix
-from williams import williams_r
-from buffett import calculate_buffett_index
-from deMartini import demartini_index
-from pivot import calculate_pivot_points
-from sonar import sonar_indicator
+import pandas as pd
+import torch
+from torch.utils.data import Dataset, DataLoader
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 
-plt.rcParams["font.family"] = "Malgun Gothic"
-plt.rcParams["axes.unicode_minus"] = False
+from indicators.acf import calculate_acf
+from indicators.buffett import calculate_buffett_index
+from indicators.deMartini import demartini_index
+from indicators.div_each_before import div_each_before
+from indicators.fractional_difference import fractional_difference
+from indicators.pivot import calculate_pivot_points
+from indicators.sonar import sonar_indicator
+from indicators.stocastic import stochastic_fast, stochastic_slow
+from indicators.time_delay import time_delay_embedding
+from indicators.vix import calculate_vix
+from indicators.williams import williams_r
 
 
-def prepare_data(file_path):
-    df = pd.read_parquet(file_path)
-    window_size = 5
-    stride = 2
-    df_list = create_time_windows(df, window_size, stride)
-
-    features = {
-        "vix": calculate_vix(df["종가"]),
-        "williams": williams_r(df, window_size, 5),
-        "ACF": calculate_acf(df_list, column="종가", window_size=window_size),
-        "div_each_before": div_each_before(df["종가"]),
-        "time delay": time_delay_embedding(df["종가"], 5, 3),
-        "stocastic fast": stochastic_fast(df)["fastk"],
-        "stocastic slow": stochastic_slow(df)["slowk"],
-        "buffet index kor": calculate_buffett_index(df["종가"], "KOR"),
-        # "buffet index usa": calculate_buffett_index(df["종가"], "USA"),
-        "demartini index": demartini_index(df["종가"], period=5),
-        "pivot": calculate_pivot_points(df["고가"], df["저가"], df["종가"]),
-        "sonar": sonar_indicator(df, window_size=5),
+def calculate_indicators(df, window_size):
+    indicators = {
+        "ACF": calculate_acf(df["종가"], window_size=window_size),
+        "Buffett": calculate_buffett_index(df["종가"], "KOR"),
+        "DE": demartini_index(df["종가"]),
+        "DEB": div_each_before(df["종가"]),
+        "FracDiff": fractional_difference(df["종가"], 0.3),
+        "PivotPoints": calculate_pivot_points(df["고가"], df["저가"], df["종가"]),
+        "SN": sonar_indicator(df, window_size=14),
+        "STFA": stochastic_fast(df)["fastd"],
+        "STSL": stochastic_slow(df)["slowd"],
+        "TimeDelay": time_delay_embedding(df["종가"], 60, 1)["t-0"],
+        "CalVIX": calculate_vix(df["종가"], window_size),
+        "Williams": williams_r(df, 5),
     }
 
-    close_prices = df["종가"]
-    d_values = [0.8, 0.3]
-    for d in d_values:
-        frac_diffs = fractional_difference(close_prices, d)
-        frac_diffs = create_time_windows(frac_diffs, window_size, stride)
-        features[f"Frac_Diff_{d}"] = frac_diffs
-
-    # Ensure all features have the same length
-    min_length = min(len(v) for v in features.values())
-    features = {k: v[:min_length] for k, v in features.items()}
-
-    return features
+    return indicators
 
 
-def add_correlation(data1, data2):
-    flat_data1 = (
-        data1.ravel() if isinstance(data1, np.ndarray) else data1.values.ravel()
-    )
-    flat_data2 = (
-        data2.ravel() if isinstance(data2, np.ndarray) else data2.values.ravel()
-    )
+def combine_indicators(indicators, df_original):
+    column_mapping = {
+        "acf": "Autocorrelation_Function",
+        "buffett": "Buffett_Indicator",
+        "de": "DeMartini_Indicator",
+        "deb": "Divide_Each_Before",
+        "fracdiff": "Fractional_Differentiation",
+        "pivot_high": "Pivot_Point_High",
+        "pivot_low": "Pivot_Point_Low",
+        "pivot_close": "Pivot_Point_Close",
+        "sonar": "Sonar_Indicator",
+        "fastd": "Stochastic_Fast_%D",
+        "slowd": "Stochastic_Slow_%D",
+        "t-0": "Time_Delay_Embedding",
+        "vix": "Volatility_Index",
+        "williams_r": "Williams_%R",
+    }
 
-    # Ensure both arrays have the same length
-    min_length = min(len(flat_data1), len(flat_data2))
-    flat_data1 = flat_data1[:min_length]
-    flat_data2 = flat_data2[:min_length]
+    result = pd.DataFrame(index=df_original.index)
 
-    correlation = np.corrcoef(flat_data1, flat_data2)[0, 1]
-    return correlation
+    for indicator_name, indicator_data in indicators.items():
+        if isinstance(indicator_data, pd.DataFrame):
+            renamed_columns = {
+                col: f"{indicator_name}_{column_mapping.get(col, col)}"
+                for col in indicator_data.columns
+            }
+            indicator_data = indicator_data.rename(columns=renamed_columns)
+        elif isinstance(indicator_data, pd.Series):
+            new_name = f"{indicator_name}_{column_mapping.get(indicator_data.name, indicator_data.name)}"
+            indicator_data = indicator_data.rename(new_name)
 
+        result = pd.concat([result, indicator_data], axis=1)
 
-def calculate_correlation(features_list):
-    labels = list(features_list[0].keys())
-    n = len(labels)
-    corr_matrices = []
-
-    def calculate_single_correlation(features):
-        corr_matrix = np.zeros((n, n))
-        for i in range(n):
-            for j in range(i + 1):
-                corr_matrix[i, j] = add_correlation(
-                    features[labels[i]], features[labels[j]]
-                )
-        return corr_matrix
-
-    with ThreadPoolExecutor() as executor:
-        corr_matrices = list(executor.map(calculate_single_correlation, features_list))
-
-    avg_corr_matrix = np.mean(corr_matrices, axis=0)
-
-    mask = np.triu(np.ones_like(avg_corr_matrix, dtype=bool), k=1)
-    avg_corr_matrix[mask] = np.nan
-
-    return pd.DataFrame(avg_corr_matrix, index=labels, columns=labels)
+    return result
 
 
-def main():
-    st.title("Feature Correlation Heatmap (Lower Triangle)")
+class SlidingWindowDataset(Dataset):
+    def __init__(self, df, window_size=5, stride=2):
+        self.df = df
+        self.window_size = window_size
+        self.stride = stride
+        self.valid_indices = self._get_valid_indices()
 
-    directory_path = st.text_input(
-        "Enter the directory path containing .parquet files:",
-    )
+        # Apply min-max normalization to each column
+        self.scaler = MinMaxScaler()
+        self.normalized_data = self.scaler.fit_transform(self.df)
 
-    if st.button("Calculate Correlation"):
-        start_time = time.time()
-
-        if not os.path.isdir(directory_path):
-            st.error("The provided path is not a valid directory.")
-            return
-
-        parquet_files = [
-            f for f in os.listdir(directory_path)[:10] if f.endswith(".parquet")
+    def _get_valid_indices(self):
+        return [
+            i
+            for i in range(0, len(self.df) - self.window_size + 1, self.stride)
+            if not np.isnan(self.df.iloc[i : i + self.window_size].values).any()
         ]
 
-        if not parquet_files:
-            st.error("No .parquet files found in the specified directory.")
-            return
+    def __len__(self):
+        return len(self.valid_indices)
 
-        st.info(f"Found {len(parquet_files)} .parquet files in the directory.")
+    def __getitem__(self, idx):
+        if idx >= len(self.valid_indices):
+            raise IndexError("Index out of range")
 
-        features_list = []
-        progress_bar = st.progress(0)
-        status_text = st.empty()
+        start_idx = self.valid_indices[idx]
+        end_idx = start_idx + self.window_size
 
-        def process_file(file):
-            file_path = os.path.join(directory_path, file)
-            return prepare_data(file_path)
+        window = self.normalized_data[start_idx:end_idx]
 
-        with ThreadPoolExecutor() as executor:
-            future_to_file = {
-                executor.submit(process_file, file): file for file in parquet_files
-            }
-            for i, future in enumerate(as_completed(future_to_file)):
-                file = future_to_file[future]
-                try:
-                    features = future.result()
-                    features_list.append(features)
-                except Exception as exc:
-                    st.error(f"{file} generated an exception: {exc}")
-                status_text.text(f"Processing file {i+1}/{len(parquet_files)}: {file}")
-                progress_bar.progress((i + 1) / len(parquet_files))
+        # Convert to PyTorch tensor
+        window_tensor = torch.FloatTensor(window)
 
-        status_text.text("Calculating correlation matrix...")
-        corr_df = calculate_correlation(features_list)
+        return {"window": window_tensor}
 
-        fig, ax = plt.subplots(figsize=(10, 8))
-        mask = np.triu(np.ones_like(corr_df, dtype=bool), k=1)
-        sns.heatmap(
-            corr_df,
-            mask=mask,
-            annot=True,
-            cmap="coolwarm",
-            vmin=-1,
-            vmax=1,
-            center=0,
-            ax=ax,
-            cbar_kws={"label": "Correlation"},
-        )
-        plt.title("Average Correlation Heatmap (Lower Triangle)")
-        st.pyplot(fig)
-
-        st.write("Average Correlation Matrix (Lower Triangle):")
-        st.dataframe(corr_df)
-
-        end_time = time.time()
-        execution_time = end_time - start_time
-        st.success(f"Calculation completed in {execution_time:.2f} seconds.")
-
-        progress_bar.empty()
-        status_text.empty()
+    def inverse_transform(self, normalized_data):
+        return self.scaler.inverse_transform(normalized_data)
 
 
-if __name__ == "__main__":
-    main()
+# Usage example:
+# 파라미터 설정
+window_size = 5
+stride = 3
+batch_size = 64
+num_epochs = 100
+learning_rate = 0.0001
+test_size = 0.2
+
+
+df = pd.read_parquet(
+    r"D:\Workspace\DnS\data\AJ네트웍스_20190825_20240825.parquet"
+)  # Load your DataFrame
+indicators = calculate_indicators(df, window_size)
+combined_df = combine_indicators(indicators, df)
+
+# 데이터 분할
+train_df, test_df = train_test_split(combined_df, test_size=test_size, shuffle=True)
+
+# 데이터셋 및 DataLoader 생성
+train_dataset = SlidingWindowDataset(train_df, window_size=window_size, stride=stride)
+test_dataset = SlidingWindowDataset(test_df, window_size=window_size, stride=stride)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+
+print(train_loader[0])

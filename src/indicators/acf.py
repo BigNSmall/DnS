@@ -4,7 +4,6 @@ from statsmodels.tsa.stattools import acf
 from typing import List
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
-from utils.time_windowed_data import create_time_windows
 
 # 한글 폰트 설정
 font_path = "C:/Windows/Fonts/malgun.ttf"  # 실제 한글 폰트 경로로 변경해야 합니다
@@ -12,33 +11,27 @@ font_prop = fm.FontProperties(fname=font_path)
 plt.rcParams["font.family"] = font_prop.get_name()
 
 
-def calculate_acf(time_window_df: pd.DataFrame, window_size: int) -> pd.DataFrame:
-    """
-    시간 창이 적용된 DataFrame의 모든 열에 대해 자기상관함수(ACF)를 계산합니다.
+def calculate_acf(
+    time_series: pd.Series | pd.DataFrame, window_size: int = None
+) -> pd.DataFrame:
+    # 입력이 DataFrame인 경우 Series로 변환
+    if isinstance(time_series, pd.DataFrame):
+        time_series = time_series.iloc[:, 0]
 
-    :param time_window_df: create_time_windows 함수로 생성된 시간 창 DataFrame (단일 열에 대한)
-    :param window_size: ACF를 계산할 최대 시차
-    :return: 계산된 ACF 값을 포함하는 DataFrame (인덱스는 원본 날짜)
-    """
-    acf_values_list = []
+    # window_size가 지정되지 않은 경우, 시계열 길이의 절반으로 설정
+    if window_size is None:
+        window_size = len(time_series) // 2
 
-    # 각 시간 창에 대해 ACF 계산
-    for idx, row in time_window_df.iterrows():
-        # 현재 시간 창의 데이터 추출
-        window_data = row.values
+    # ACF 계산
+    acf_values = acf(time_series, nlags=window_size - 1, fft=False)
 
-        # ACF 계산
-        acf_values = acf(window_data, nlags=window_size - 1, fft=False)
+    # 결과를 DataFrame으로 변환
+    result = pd.DataFrame(
+        np.tile(acf_values, (len(time_series), 1)),
+        columns=[f"lag_{i}" for i in range(window_size)],
+    )
 
-        acf_values_list.append(acf_values)
-
-    # ACF 값으로 새로운 DataFrame 생성
-    acf_df = pd.DataFrame(acf_values_list, index=time_window_df.index)
-
-    # 열 이름 설정
-    acf_df.columns = [f"lag_{i}" for i in range(window_size)]
-
-    return acf_df
+    return result
 
 
 def plot_acf_range(acf_values: np.ndarray, title: str):
@@ -68,10 +61,6 @@ def plot_acf_range(acf_values: np.ndarray, title: str):
     plt.legend()
     plt.grid(True)
     plt.show()
-
-    # 평균 ACF 출력
-    for i, acf_value in enumerate(mean_values):
-        print(f"Lag {i}: {acf_value:.4f}")
 
 
 def main():

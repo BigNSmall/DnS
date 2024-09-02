@@ -24,8 +24,7 @@ def williams_r(df, window_size, lookback_period=5):
     lowest_low = low.rolling(window=lookback_period, min_periods=1).min()
     # Calculate Williams %R
     will_r = -100 * ((highest_high - close) / (highest_high - lowest_low))
-    print(will_r)
-    # will_r = will_r[:window_size]
+
     return will_r
 
 
@@ -69,8 +68,10 @@ def plot_williams_r(df, lookback_period=5):
 # plot_williams_r(df)
 if __name__ == "__main__":
     # 가상 주가 데이터 생성
-    df = pd.read_parquet("C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet")
+    df = pd.read_parquet(
+        "C:/Users/yjahn/Desktop/DnS/data/NAVER_20190806_20240804.parquet"
+    )
     plot_williams_r(df)
-    
+
     # 시각화
-    #plot_vix_and_prices(price_series, vix_series)
+    # plot_vix_and_prices(price_series, vix_series)
