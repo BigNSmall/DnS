@@ -70,61 +70,6 @@ def calculate_indicators(df, window_size):
     return indicators
 
 
-# class SlidingWindowDataset(Dataset):
-#     def __init__(self, df, window_size=5, stride=2):
-#         self.df = df
-#         self.window_size = window_size
-#         self.stride = stride
-#         self.indicators = calculate_indicators(df, window_size)
-#         self.valid_indices = self._get_valid_indices()
-#         self.scaler = MinMaxScaler()
-#         self._fit_scaler()
-
-#     def _get_valid_indices(self):
-#         valid_indices = []
-#         for i in range(0, len(self.df) - self.window_size + 1, self.stride):
-#             window = self.df.iloc[i : i + self.window_size]
-#             if not window.isnull().values.any() and not any(
-#                 np.isnan(indicator[i : i + self.window_size]).any()
-#                 for indicator in self.indicators.values()
-#             ):
-#                 valid_indices.append(i)
-#         return valid_indices
-
-#     def _fit_scaler(self):
-#         all_data = []
-#         for i in self.valid_indices:
-#             window_data = self._get_window_data(i)
-#             all_data.append(window_data)
-#         all_data = np.concatenate(all_data, axis=0)
-#         self.scaler.fit(all_data)
-
-#     def _get_window_data(self, start_idx):
-#         end_idx = start_idx + self.window_size
-#         window_data = np.concatenate(
-#             [
-#                 v[start_idx:end_idx].reshape(self.window_size, -1)
-#                 for v in self.indicators.values()
-#             ],
-#             axis=1,
-#         )
-#         return window_data
-
-#     def __len__(self):
-#         return len(self.valid_indices)
-
-#     def __getitem__(self, idx):
-#         start_idx = self.valid_indices[idx]
-#         window_data = self._get_window_data(start_idx)
-#         scaled_data = self.scaler.transform(window_data)
-#         return torch.FloatTensor(scaled_data)
-
-#     def get_dates(self, idx):
-#         start_idx = self.valid_indices[idx]
-#         end_idx = start_idx + self.window_size
-#         return self.df.index[start_idx:end_idx]
-
-
 class Autoencoder(nn.Module):
     def __init__(
         self, input_dim, hidden_dims=[256, 128, 64, 32], latent_dim=16, dropout_rate=0.2
@@ -265,52 +210,41 @@ def visualize_clusters(encoded_data, labels_dict):
         "2D t-SNE": lambda data: TSNE(n_components=2, random_state=42).fit_transform(
             data
         ),
-        "3D PCA": lambda data: PCA(n_components=3, random_state=42).fit_transform(data),
-        "2D UMAP": lambda data: umap.UMAP(n_components=2, n_jobs=-1).fit_transform(
-            data
-        ),
+        "2D PCA": lambda data: PCA(n_components=2, random_state=42).fit_transform(data),
+        "2D UMAP": lambda data: umap.UMAP(
+            n_components=2, random_state=42
+        ).fit_transform(data),
     }
 
     n_rows = len(reduction_methods)
     n_cols = len(labels_dict)
-    fig = plt.figure(figsize=(5 * n_cols, 5 * n_rows))
-
-    plt.rcParams["font.family"] = "DejaVu Sans"
+    fig, axes = plt.subplots(
+        n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows), squeeze=False
+    )
+    fig.suptitle(
+        "Clustering Results with Different Dimension Reduction Methods", fontsize=16
+    )
 
     for i, (reduction_name, reduction_func) in enumerate(reduction_methods.items()):
         reduced_data = reduction_func(encoded_data)
 
         for j, (cluster_name, labels) in enumerate(labels_dict.items()):
-            ax = fig.add_subplot(
-                n_rows,
-                n_cols,
-                i * n_cols + j + 1,
-                projection="3d" if reduction_name == "3D PCA" else None,
+            ax = axes[i, j]
+            scatter = ax.scatter(
+                reduced_data[:, 0],
+                reduced_data[:, 1],
+                c=labels,
+                cmap="viridis",
+                alpha=0.7,
             )
+            ax.set_title(f"{reduction_name}\n{cluster_name}")
+            ax.set_xlabel("Component 1")
+            ax.set_ylabel("Component 2")
+            ax.set_xticks([])
+            ax.set_yticks([])
+            fig.colorbar(scatter, ax=ax, aspect=40, pad=0.01)
 
-            if reduction_name == "3D PCA":
-                scatter = ax.scatter(
-                    reduced_data[:, 0],
-                    reduced_data[:, 1],
-                    reduced_data[:, 2],
-                    c=labels,
-                    cmap="viridis",
-                )
-                ax.set_xlabel("Component 1")
-                ax.set_ylabel("Component 2")
-                ax.set_zlabel("Component 3")
-            else:
-                scatter = ax.scatter(
-                    reduced_data[:, 0], reduced_data[:, 1], c=labels, cmap="viridis"
-                )
-                ax.set_xlabel("Component 1")
-                ax.set_ylabel("Component 2")
-
-            ax.set_title(f"{reduction_name} - {cluster_name}")
-            plt.colorbar(scatter, ax=ax)
-            fig, ax = plt.subplots(figsize=(20, 10))
-
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     return fig
 
 
