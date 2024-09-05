@@ -10,17 +10,17 @@ import matplotlib.pyplot as plt
 import joblib
 
 # Indicator calculation functions
-from acf import calculate_acf
-from buffett import calculate_buffett_index
-from deMartini import demartini_index
-from div_each_before import div_each_before
-from fractional_difference import fractional_difference
-from pivot import calculate_pivot_points
-from sonar import sonar_indicator
-from stocastic import stochastic_fast, stochastic_slow
-from time_delay import time_delay_embedding
-from vix import calculate_vix
-from williams import williams_r
+from indicators.acf import calculate_acf
+from indicators.buffett import calculate_buffett_index
+from indicators.deMartini import demartini_index
+from indicators.div_each_before import div_each_before
+from indicators.fractional_difference import fractional_difference
+from indicators.pivot import calculate_pivot_points
+from indicators.sonar import sonar_indicator
+from indicators.stocastic import stochastic_fast, stochastic_slow
+from indicators.time_delay import time_delay_embedding
+from indicators.vix import calculate_vix
+from indicators.williams import williams_r
 
 
 def calculate_indicators(df, window_size):

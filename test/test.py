@@ -1,13 +1,6 @@
 import pandas as pd
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
-import matplotlib.pyplot as plt
-from tqdm import tqdm
+from torch.utils.data import Dataset
 
 
 def create_time_windows(df, window_size, stride):
@@ -107,10 +100,6 @@ class SlidingWindowDataLoader(Dataset):
         self.stride = stride
         self.valid_indices = self._get_valid_indices()
 
-        # Apply min-max normalization to each column
-        self.scaler = MinMaxScaler()
-        self.normalized_data = self.scaler.fit_transform(self.df)
-
     def _get_valid_indices(self):
         return [
             i
@@ -128,216 +117,43 @@ class SlidingWindowDataLoader(Dataset):
         start_idx = self.valid_indices[idx]
         end_idx = start_idx + self.window_size
 
-        window = self.normalized_data[start_idx:end_idx]
+        window = self.df.iloc[start_idx:end_idx].values
 
-        # Convert to PyTorch tensor
-        window_tensor = torch.FloatTensor(window)
-
-        return {"window": window_tensor}
-
-    def inverse_transform(self, normalized_data):
-        return self.scaler.inverse_transform(normalized_data)
-
-
-class Autoencoder(nn.Module):
-    def __init__(
-        self, input_dim, hidden_dims=[256, 128, 64, 32], latent_dim=16, dropout_rate=0.2
-    ):
-        super(Autoencoder, self).__init__()
-
-        # Encoder
-        encoder_layers = []
-        in_dim = input_dim
-        for dim in hidden_dims:
-            encoder_layers.extend(
-                [
-                    nn.Linear(in_dim, dim),
-                    nn.LayerNorm(dim),
-                    nn.PReLU(),
-                    nn.Dropout(dropout_rate),
-                ]
-            )
-            in_dim = dim
-        encoder_layers.append(nn.Linear(in_dim, latent_dim))
-        self.encoder = nn.Sequential(*encoder_layers)
-
-        # Decoder
-        decoder_layers = []
-        in_dim = latent_dim
-        for dim in reversed(hidden_dims):
-            decoder_layers.extend(
-                [
-                    nn.Linear(in_dim, dim),
-                    nn.LayerNorm(dim),
-                    nn.PReLU(),
-                    nn.Dropout(dropout_rate),
-                ]
-            )
-            in_dim = dim
-        decoder_layers.append(nn.Linear(in_dim, input_dim))
-        self.decoder = nn.Sequential(*decoder_layers)
-
-        # Attention mechanism
-        self.attention = nn.MultiheadAttention(latent_dim, num_heads=4)
-
-    def forward(self, x):
-        encoded = self.encoder(x)
-        # Apply attention
-        attn_output, _ = self.attention(
-            encoded.unsqueeze(0), encoded.unsqueeze(0), encoded.unsqueeze(0)
-        )
-        attn_output = attn_output.squeeze(0)
-        # Add residual connection
-        encoded = encoded + attn_output
-        decoded = self.decoder(encoded)
-        return decoded
-
-    def encode(self, x):
-        return self.encoder(x)
-
-    def decode(self, x):
-        return self.decoder(x)
-
-
-def train_autoencoder(
-    model, train_loader, test_loader, num_epochs, learning_rate, device
-):
-    criterion = nn.HuberLoss()
-    optimizer = optim.NAdam(model.parameters(), lr=learning_rate)
-
-    train_losses = []
-    test_losses = []
-
-    for epoch in range(num_epochs):
-        model.train()
-        total_train_loss = 0
-        for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}"):
-            inputs = batch["window"].float().to(device)
-            inputs = inputs.view(inputs.size(0), -1)  # Flatten the input
-
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, inputs)
-            loss.backward()
-            optimizer.step()
-
-            total_train_loss += loss.item()
-
-        avg_train_loss = total_train_loss / len(train_loader)
-        train_losses.append(avg_train_loss)
-
-        # Evaluate on test set
-        model.eval()
-        total_test_loss = 0
-        with torch.no_grad():
-            for batch in test_loader:
-                inputs = batch["window"].float().to(device)
-                inputs = inputs.view(inputs.size(0), -1)
-                outputs = model(inputs)
-                loss = criterion(outputs, inputs)
-                total_test_loss += loss.item()
-
-        avg_test_loss = total_test_loss / len(test_loader)
-        test_losses.append(avg_test_loss)
-
-        print(
-            f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {avg_train_loss:.4f}, Test Loss: {avg_test_loss:.4f}"
-        )
-
-    return train_losses, test_losses
-
-
-def visualize_results(train_losses, test_losses):
-    plt.figure(figsize=(10, 5))
-    plt.plot(train_losses, label="Train Loss")
-    plt.plot(test_losses, label="Test Loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title("Training and Test Loss")
-    plt.legend()
-    plt.show()
-
-
-def visualize_reconstruction(model, test_loader, device, combined_df):
-    model.eval()
-    with torch.no_grad():
-        # Get a batch of test data
-        batch = next(iter(test_loader))
-        inputs = batch["window"].float().to(device)
-        inputs = inputs.view(inputs.size(0), -1)
-
-        # Get model reconstruction
-        outputs = model(inputs)
-
-        # Convert to numpy for plotting
-        inputs = inputs.cpu().numpy()
-        outputs = outputs.cpu().numpy()
-
-        # Reshape inputs and outputs to match the original data shape
-        inputs = inputs.reshape(inputs.shape[0], -1, combined_df.shape[1])
-        outputs = outputs.reshape(outputs.shape[0], -1, combined_df.shape[1])
-
-        # Plot all indicators in one graph
-        num_indicators = combined_df.shape[1]
-        fig, ax = plt.subplots(figsize=(20, 10))
-
-        # Define color palette
-        colors = plt.colormaps.get_cmap("tab20")(np.linspace(0, 1, num_indicators * 2))
-
-        for i in range(num_indicators):
-            # Plot original
-            ax.plot(
-                inputs[0, :, i],
-                color=colors[i * 2],
-                label=f"{combined_df.columns[i]} (Original)",
-            )
-
-            # Plot reconstructed
-            ax.plot(
-                outputs[0, :, i],
-                color=colors[i * 2 + 1],
-                linestyle="--",
-                label=f"{combined_df.columns[i]} (Reconstructed)",
-            )
-
-        ax.set_title("Original vs Reconstructed Indicators", fontsize=16)
-        ax.set_xlabel("Time Step")
-        ax.set_ylabel("Normalized Value")
-        ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-
-        plt.tight_layout()
-        plt.show()
+        return {"window": window, "timestamp": self.df.index[end_idx - 1]}
 
 
 def main():
-    # 데이터 로드
+    # Load data
     df = pd.read_parquet(r"D:\Workspace\DnS\data\AJ네트웍스_20190825_20240825.parquet")
 
-    # 파라미터 설정
+    # Set parameters
     window_size = 5
-    stride = 3
-    batch_size = 64
-    num_epochs = 100
-    learning_rate = 0.0001
-    test_size = 0.2
+    stride = 2
 
-    # 지표 계산 및 결합
+    # Calculate indicators
     indicators = calculate_indicators(df, window_size)
+
+    # Combine indicators
     combined_df = combine_indicators(indicators, df)
 
-    # 데이터 분할
-    train_df, test_df = train_test_split(combined_df, test_size=test_size, shuffle=True)
+    # Print results
+    print(combined_df.head().to_markdown())
+    print(f"Shape of combined DataFrame: {combined_df.shape}")
 
-    # 데이터셋 및 DataLoader 생성
-    train_dataset = SlidingWindowDataLoader(
-        train_df, window_size=window_size, stride=stride
-    )
-    test_dataset = SlidingWindowDataLoader(
-        test_df, window_size=window_size, stride=stride
+    # Create dataset
+    dataset = SlidingWindowDataLoader(
+        combined_df, window_size=window_size, stride=stride
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+    print(f"\nTotal number of valid samples: {len(dataset)}")
+
+    # Print sample data
+    for i in range(len(dataset)):  # Print first 3 samples
+        sample = dataset[i]
+        print(f"\nSample {i}:")
+        print(f"Window shape: {sample['window'].shape}")
+        print(f"Timestamp: {sample['timestamp']}")
+        print("-" * 25)
 
 
 if __name__ == "__main__":

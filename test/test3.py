@@ -19,21 +19,20 @@ import umap
 import matplotlib.pyplot as plt
 import joblib
 from tqdm import tqdm
+import warnings
 
 # Indicator calculation functions
-from indicators.acf import calculate_acf
-from indicators.buffett import calculate_buffett_index
-from indicators.deMartini import demartini_index
-from indicators.div_each_before import div_each_before
-from indicators.fractional_difference import fractional_difference
-from indicators.pivot import calculate_pivot_points
-from indicators.sonar import sonar_indicator
-from indicators.stocastic import stochastic_fast, stochastic_slow
-from indicators.time_delay import time_delay_embedding
-from indicators.vix import calculate_vix
-from indicators.williams import williams_r
-
-from train import SlidingWindowDataset
+from acf import calculate_acf
+from buffett import calculate_buffett_index
+from deMartini import demartini_index
+from div_each_before import div_each_before
+from fractional_difference import fractional_difference
+from pivot import calculate_pivot_points
+from sonar import sonar_indicator
+from stocastic import stochastic_fast, stochastic_slow
+from time_delay import time_delay_embedding
+from vix import calculate_vix
+from williams import williams_r
 
 # 1. Data Preparation and Model Definition
 
@@ -70,59 +69,59 @@ def calculate_indicators(df, window_size):
     return indicators
 
 
-# class SlidingWindowDataset(Dataset):
-#     def __init__(self, df, window_size=5, stride=2):
-#         self.df = df
-#         self.window_size = window_size
-#         self.stride = stride
-#         self.indicators = calculate_indicators(df, window_size)
-#         self.valid_indices = self._get_valid_indices()
-#         self.scaler = MinMaxScaler()
-#         self._fit_scaler()
+class SlidingWindowDataset(Dataset):
+    def __init__(self, df, window_size=5, stride=2):
+        self.df = df
+        self.window_size = window_size
+        self.stride = stride
+        self.indicators = calculate_indicators(df, window_size)
+        self.valid_indices = self._get_valid_indices()
+        self.scaler = MinMaxScaler()
+        self._fit_scaler()
 
-#     def _get_valid_indices(self):
-#         valid_indices = []
-#         for i in range(0, len(self.df) - self.window_size + 1, self.stride):
-#             window = self.df.iloc[i : i + self.window_size]
-#             if not window.isnull().values.any() and not any(
-#                 np.isnan(indicator[i : i + self.window_size]).any()
-#                 for indicator in self.indicators.values()
-#             ):
-#                 valid_indices.append(i)
-#         return valid_indices
+    def _get_valid_indices(self):
+        valid_indices = []
+        for i in range(0, len(self.df) - self.window_size + 1, self.stride):
+            window = self.df.iloc[i : i + self.window_size]
+            if not window.isnull().values.any() and not any(
+                np.isnan(indicator[i : i + self.window_size]).any()
+                for indicator in self.indicators.values()
+            ):
+                valid_indices.append(i)
+        return valid_indices
 
-#     def _fit_scaler(self):
-#         all_data = []
-#         for i in self.valid_indices:
-#             window_data = self._get_window_data(i)
-#             all_data.append(window_data)
-#         all_data = np.concatenate(all_data, axis=0)
-#         self.scaler.fit(all_data)
+    def _fit_scaler(self):
+        all_data = []
+        for i in self.valid_indices:
+            window_data = self._get_window_data(i)
+            all_data.append(window_data)
+        all_data = np.concatenate(all_data, axis=0)
+        self.scaler.fit(all_data)
 
-#     def _get_window_data(self, start_idx):
-#         end_idx = start_idx + self.window_size
-#         window_data = np.concatenate(
-#             [
-#                 v[start_idx:end_idx].reshape(self.window_size, -1)
-#                 for v in self.indicators.values()
-#             ],
-#             axis=1,
-#         )
-#         return window_data
+    def _get_window_data(self, start_idx):
+        end_idx = start_idx + self.window_size
+        window_data = np.concatenate(
+            [
+                v[start_idx:end_idx].reshape(self.window_size, -1)
+                for v in self.indicators.values()
+            ],
+            axis=1,
+        )
+        return window_data
 
-#     def __len__(self):
-#         return len(self.valid_indices)
+    def __len__(self):
+        return len(self.valid_indices)
 
-#     def __getitem__(self, idx):
-#         start_idx = self.valid_indices[idx]
-#         window_data = self._get_window_data(start_idx)
-#         scaled_data = self.scaler.transform(window_data)
-#         return torch.FloatTensor(scaled_data)
+    def __getitem__(self, idx):
+        start_idx = self.valid_indices[idx]
+        window_data = self._get_window_data(start_idx)
+        scaled_data = self.scaler.transform(window_data)
+        return torch.FloatTensor(scaled_data)
 
-#     def get_dates(self, idx):
-#         start_idx = self.valid_indices[idx]
-#         end_idx = start_idx + self.window_size
-#         return self.df.index[start_idx:end_idx]
+    def get_dates(self, idx):
+        start_idx = self.valid_indices[idx]
+        end_idx = start_idx + self.window_size
+        return self.df.index[start_idx:end_idx]
 
 
 class Autoencoder(nn.Module):
@@ -203,6 +202,8 @@ def load_model(model_path, scaler_path, device):
 
 
 # 3. Encoding Data
+
+
 def encode_data(model, dataset, device):
     model.eval()
     encoded_data = []
@@ -220,6 +221,8 @@ def encode_data(model, dataset, device):
 
 
 # 4. Clustering
+
+
 def perform_clustering(encoded_data):
     # K-means clustering
     kmeans = KMeans(n_clusters=5, random_state=42)
@@ -308,10 +311,9 @@ def visualize_clusters(encoded_data, labels_dict):
 
             ax.set_title(f"{reduction_name} - {cluster_name}")
             plt.colorbar(scatter, ax=ax)
-            fig, ax = plt.subplots(figsize=(20, 10))
 
     plt.tight_layout()
-    return fig
+    plt.show()
 
 
 # Main execution (수정됨)
